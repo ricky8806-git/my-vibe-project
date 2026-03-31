@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📦 Package Tracker</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f7fa;
+    color: #333;
+    min-height: 100vh;
+  }
+
+  .header {
+    background: #1a73e8;
+    color: white;
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .subtitle { font-size: 13px; opacity: 0.85; margin-top: 2px; }
+
+  .scan-bar {
+    background: white;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .email-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f1f3f4;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 14px;
+    color: #555;
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .email-display .label { font-weight: 600; color: #333; }
+
+  .btn-scan {
+    background: #1a73e8;
+    color: white;
+    border: none;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+
+  .btn-scan:hover { background: #1557b0; }
+  .btn-scan:disabled { background: #aaa; cursor: not-allowed; }
+
+  .main { padding: 24px; max-width: 900px; margin: 0 auto; }
+
+  /* Loading */
+  .loading {
+    display: none;
+    text-align: center;
+    padding: 60px 20px;
+  }
+
+  .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid #e0e0e0;
+    border-top-color: #1a73e8;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading p { color: #666; font-size: 14px; }
+
+  /* Empty / error states */
+  .state-card {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    color: #666;
+    margin-top: 24px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+
+  .state-card .icon { font-size: 48px; margin-bottom: 12px; }
+  .state-card h3 { font-size: 18px; color: #333; margin-bottom: 8px; }
+  .state-card p { font-size: 14px; line-height: 1.5; }
+  .state-card.error { border-left: 4px solid #d93025; }
+  .state-card.error h3 { color: #d93025; }
+
+  /* Section */
+  .section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-header .count {
+    background: rgba(255,255,255,0.35);
+    border-radius: 12px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .section-deliveries .section-header { background: #d93025; color: white; }
+  .section-returns .section-header { background: #e37400; color: white; }
+  .section-completed .section-header { background: #137333; color: white; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #fafafa;
+    border-bottom: 1px solid #e8e8e8;
+  }
+
+  td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfd; }
+
+  .item-name { font-weight: 600; color: #333; }
+  .item-sub { font-size: 12px; color: #888; margin-top: 2px; }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .badge-ordered    { background: #fff8e1; color: #b36b00; }
+  .badge-shipped    { background: #e8f0fe; color: #1a56c4; }
+  .badge-out        { background: #fff3e0; color: #e65100; }
+  .badge-delivered  { background: #e6f4ea; color: #137333; }
+  .badge-r-init     { background: #fff8e1; color: #b36b00; }
+  .badge-r-shipped  { background: #e8f0fe; color: #1a56c4; }
+  .badge-r-received { background: #e6f4ea; color: #137333; }
+  .badge-refund     { background: #e6f4ea; color: #137333; }
+
+  .proof-link { color: #1a73e8; text-decoration: none; font-size: 13px; }
+  .proof-link:hover { text-decoration: underline; }
+
+  .meta-bar {
+    text-align: right;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 16px;
+  }
+
+  #welcome {
+    text-align: center;
+    padding: 60px 20px;
+    color: #666;
+  }
+
+  #welcome .icon { font-size: 64px; margin-bottom: 16px; }
+  #welcome h2 { font-size: 22px; color: #333; margin-bottom: 8px; }
+  #welcome p { font-size: 14px; line-height: 1.6; max-width: 400px; margin: 0 auto; }
+
+  @media (max-width: 600px) {
+    .header { flex-direction: column; align-items: flex-start; gap: 4px; }
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(4), td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>📦 Package Tracker</h1>
+    <div class="subtitle">Scan your Gmail for shipping & return updates</div>
+  </div>
+</div>
+
+<div class="scan-bar">
+  <div class="email-display">
+    <span class="label">Account:</span>
+    <span id="user-email">Loading...</span>
+  </div>
+  <button class="btn-scan" id="btn-scan" onclick="startScan()">🔍 Scan My Packages</button>
+</div>
+
+<div class="main">
+
+  <!-- Welcome state -->
+  <div id="welcome">
+    <div class="icon">📬</div>
+    <h2>Ready to scan</h2>
+    <p>Click <strong>Scan My Packages</strong> to search your Gmail for shipping, delivery, and return emails from the last 14 days.</p>
+  </div>
+
+  <!-- Loading state -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <p>Scanning your Gmail and analyzing packages…<br>This may take 20–40 seconds.</p>
+  </div>
+
+  <!-- Results -->
+  <div id="results" style="display:none;"></div>
+
+</div>
+
+<script>
+  // Auto-fill user email on load
+  google.script.run
+    .withSuccessHandler(function(email) {
+      document.getElementById('user-email').textContent = email || 'Unknown';
+    })
+    .withFailureHandler(function() {
+      document.getElementById('user-email').textContent = 'Could not load';
+    })
+    .getUserEmail();
+
+  function startScan() {
+    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('btn-scan').disabled = true;
+    document.getElementById('btn-scan').textContent = '⏳ Scanning...';
+
+    google.script.run
+      .withSuccessHandler(renderResults)
+      .withFailureHandler(showError)
+      .scanPackages();
+  }
+
+  function renderResults(data) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-scan').disabled = false;
+    document.getElementById('btn-scan').textContent = '🔄 Scan Again';
+
+    var packages = data.packages || [];
+    var scannedAt = new Date(data.scannedAt);
+    var emailCount = data.emailCount || 0;
+
+    var deliveries = packages.filter(function(p) { return p.category === 'delivery' && !p.completed; });
+    var returns    = packages.filter(function(p) { return p.category === 'return' && !p.completed; });
+    var completed  = packages.filter(function(p) { return p.completed; });
+
+    var html = '<div class="meta-bar">Scanned ' + emailCount + ' emails &nbsp;·&nbsp; ' +
+               scannedAt.toLocaleString() + '</div>';
+
+    if (packages.length === 0) {
+      html += '<div class="state-card">' +
+              '<div class="icon">✅</div>' +
+              '<h3>No active packages found</h3>' +
+              '<p>No pending deliveries or returns in the last 14 days. Enjoy the peace and quiet!</p>' +
+              '</div>';
+    } else {
+      if (deliveries.length > 0) {
+        html += buildSection('section-deliveries', '🚚 Pending Deliveries', deliveries.length,
+          buildDeliveryTable(deliveries));
+      }
+      if (returns.length > 0) {
+        html += buildSection('section-returns', '📮 Pending Returns', returns.length,
+          buildReturnTable(returns));
+      }
+      if (completed.length > 0) {
+        html += buildSection('section-completed', '✅ Recently Completed', completed.length,
+          buildCompletedTable(completed));
+      }
+    }
+
+    var resultsEl = document.getElementById('results');
+    resultsEl.innerHTML = html;
+    resultsEl.style.display = 'block';
+  }
+
+  function buildSection(cls, title, count, tableHtml) {
+    return '<div class="section ' + cls + '">' +
+           '<div class="section-header">' + title +
+           ' <span class="count">' + count + '</span></div>' +
+           tableHtml + '</div>';
+  }
+
+  function buildDeliveryTable(items) {
+    var rows = items.map(function(p) {
+      return '<tr>' +
+        '<td><div class="item-name">' + esc(p.itemDescription || 'Unknown item') + '</div>' +
+             (p.orderNumber ? '<div class="item-sub">Order #' + esc(p.orderNumber) + '</div>' : '') + '</td>' +
+        '<td><span class="badge ' + statusBadge(p.status) + '">' + statusLabel(p.status) + '</span></td>' +
+        '<td>' + esc(p.carrier || '—') + (p.trackingNumber ? '<div class="item-sub">' + esc(p.trackingNumber) + '</div>' : '') + '</td>' +
+        '<td>' + esc(p.estimatedDelivery || '—') + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<table><thead><tr><th>Package</th><th>Status</th><th>Carrier</th><th>Est. Delivery</th></tr></thead>' +
+           '<tbody>' + rows + '</tbody></table>';
+  }
+
+  function buildReturnTable(items) {
+    var rows = items.map(function(p) {
+      return '<tr>' +
+        '<td><div class="item-name">' + esc(p.itemDescription || 'Unknown item') + '</div>' +
+             (p.orderNumber ? '<div class="item-sub">Order #' + esc(p.orderNumber) + '</div>' : '') + '</td>' +
+        '<span class="badge ' + statusBadge(p.status) + '">' + statusLabel(p.status) + '</span></td>' +
+        '<td>' + esc(p.carrier || '—') + (p.trackingNumber ? '<div class="item-sub">' + esc(p.trackingNumber) + '</div>' : '') + '</td>' +
+        '<td>' + esc(p.refundAmount ? 'Refund: ' + p.refundAmount : '—') + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<table><thead><tr><th>Package</th><th>Status</th><th>Carrier</th><th>Details</th></tr></thead>' +
+           '<tbody>' + rows + '</tbody></table>';
+  }
+
+  function buildCompletedTable(items) {
+    var rows = items.map(function(p) {
+      var detail = p.proofOfDeliveryUrl
+        ? '<a class="proof-link" href="' + esc(p.proofOfDeliveryUrl) + '" target="_blank">📸 Proof of Delivery</a>'
+        : (p.refundAmount ? '$' + esc(p.refundAmount) + ' refunded' : '—');
+      return '<tr>' +
+        '<td><div class="item-name">' + esc(p.itemDescription || 'Unknown item') + '</div>' +
+             (p.orderNumber ? '<div class="item-sub">Order #' + esc(p.orderNumber) + '</div>' : '') + '</td>' +
+        '<td><span class="badge ' + statusBadge(p.status) + '">' + statusLabel(p.status) + '</span></td>' +
+        '<td>' + esc(p.deliveryDate || p.refundDate || '—') + '</td>' +
+        '<td>' + detail + '</td>' +
+      '</tr>';
+    }).join('');
+    return '<table><thead><tr><th>Package</th><th>Status</th><th>Date</th><th>Details</th></tr></thead>' +
+           '<tbody>' + rows + '</tbody></table>';
+  }
+
+  function showError(err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-scan').disabled = false;
+    document.getElementById('btn-scan').textContent = '🔄 Try Again';
+
+    var msg = (err && err.message) ? err.message : String(err);
+    var resultsEl = document.getElementById('results');
+    resultsEl.innerHTML = '<div class="state-card error">' +
+      '<div class="icon">⚠️</div>' +
+      '<h3>Scan failed</h3>' +
+      '<p>' + esc(msg) + '</p>' +
+      '</div>';
+    resultsEl.style.display = 'block';
+  }
+
+  var STATUS_LABELS = {
+    'ordered':          ['badge-ordered',  'Ordered'],
+    'shipped':          ['badge-shipped',  'Shipped'],
+    'out_for_delivery': ['badge-out',      'Out for Delivery'],
+    'delivered':        ['badge-delivered','Delivered'],
+    'return_initiated': ['badge-r-init',   'Return Initiated'],
+    'return_shipped':   ['badge-r-shipped','Return Shipped'],
+    'return_received':  ['badge-r-received','Return Received'],
+    'refund_issued':    ['badge-refund',   'Refund Issued']
+  };
+
+  function statusBadge(s) { return (STATUS_LABELS[s] || ['badge-ordered'])[0]; }
+  function statusLabel(s) { return (STATUS_LABELS[s] || ['', s])[1]; }
+
+  function esc(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+</body>
+</html>

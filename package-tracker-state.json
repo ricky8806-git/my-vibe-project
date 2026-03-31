@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "lastScanTimestamp": "2026-03-30T12:00:00-07:00",
+  "packages": {
+    "pkg_111-3855": {
+      "id": "pkg_111-3855",
+      "category": "delivery",
+      "status": "delivered",
+      "carrier": "amazon",
+      "trackingNumber": null,
+      "itemDescription": "Colgate Total Whitening Toothpaste + Lightning to 3.5mm AUX Cable",
+      "orderNumber": "111-3855448-2977859",
+      "retailer": "Amazon",
+      "estimatedDelivery": "2026-03-21",
+      "deliveryDate": "2026-03-22",
+      "proofOfDeliveryUrl": "https://www.amazon.com/progress-tracker/package?_encoding=UTF8&orderId=111-3855448-2977859&packageIndex=0&shipmentId=PvgjS298S&vt=NOTIFICATIONS&ref_=p_btn_fed_track_package",
+      "refundAmount": null,
+      "refundDate": null,
+      "firstSeenDate": "2026-03-20",
+      "lastUpdatedDate": "2026-03-30",
+      "relatedGmailMessageIds": ["19d0cfd933b850c6", "19d0e4b1c8032117", "19d13885974772bc"],
+      "completed": true
+    }
+  }
+}

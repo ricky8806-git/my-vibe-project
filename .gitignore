@@ -1,0 +1,17 @@
+# Playwright browser logs
+.playwright-mcp/
+
+# Temporary Gmail snapshot files
+gmail-drafts.md
+
+# Untitled scratch files
+Untitled
+
+# Generated images
+nanobanana-output/
+
+# Claude tool result caches
+.claude/projects/
+
+# Local settings (contains API keys)
+.claude/settings.local.json
