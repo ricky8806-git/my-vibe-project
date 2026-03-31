@@ -36,9 +36,9 @@ function scanPackages() {
     '(from:no-reply@amazon.com) (subject:delivered OR subject:delivery) after:' + afterDate,
     '(from:returns@amazon.com OR from:no-reply@amazon.com) (subject:refund OR subject:return) after:' + afterDate,
     '(from:mcinfo@ups.com OR from:trackingnotify@ups.com OR from:TrackingUpdates@fedex.com OR from:USPSInformedDelivery@usps.gov OR from:auto-reply@usps.com) after:' + afterDate,
-    '(subject:"has shipped" OR subject:"order shipped" OR subject:"out for delivery" OR subject:"has been delivered" OR subject:"your order is on the way") after:' + afterDate,
-    '(subject:"return received" OR subject:"refund processed" OR subject:"refund issued" OR subject:"credit applied" OR subject:"return accepted" OR subject:"return confirmed") after:' + afterDate,
-    '(subject:"order confirmed" OR subject:"order confirmation" OR subject:"order received" OR subject:"order placed" OR subject:"thank you for your order" OR subject:"thanks for your order" OR subject:"thanks for your purchase" OR subject:"order #") after:' + afterDate
+    '("has shipped" OR "order shipped" OR "out for delivery" OR "has been delivered" OR "your order is on the way") after:' + afterDate,
+    '("return received" OR "refund processed" OR "refund issued" OR "credit applied" OR "return accepted" OR "return confirmed") after:' + afterDate,
+    '("order confirmed" OR "order confirmation" OR "order received" OR "order placed" OR "thank you for your order" OR "thanks for your order" OR "thanks for your purchase" OR subject:"order #") after:' + afterDate
   ];
 
   // Collect unique messages across all queries
