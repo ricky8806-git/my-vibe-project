@@ -38,7 +38,7 @@ function scanPackages() {
     '(from:mcinfo@ups.com OR from:trackingnotify@ups.com OR from:TrackingUpdates@fedex.com OR from:USPSInformedDelivery@usps.gov OR from:auto-reply@usps.com) after:' + afterDate,
     '("has shipped" OR "order shipped" OR "out for delivery" OR "has been delivered" OR "your order is on the way") after:' + afterDate,
     '("return received" OR "refund processed" OR "refund issued" OR "credit applied" OR "return accepted" OR "return confirmed") after:' + afterDate,
-    '("order confirmed" OR "order confirmation" OR "order received" OR "order placed" OR "thank you for your order" OR "thanks for your order" OR "thanks for your purchase" OR subject:"order #") after:' + afterDate
+    '("order confirmed" OR "order confirmation" OR "order received" OR "order placed" OR "thank you for your order" OR "thanks for your order" OR "thanks for your purchase" OR "thank you for your purchase" OR "thank you for shopping" OR "thanks for shopping" OR "we\'ve received your order" OR "we received your order" OR "order is confirmed" OR "order has been placed" OR "order summary" OR "purchase confirmation" OR "order number:" OR subject:"order #") after:' + afterDate
   ];
 
   // Collect unique messages across all queries
