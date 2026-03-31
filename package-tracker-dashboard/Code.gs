@@ -54,12 +54,15 @@ function scanPackages() {
         var id = msg.getId();
         if (!seenIds[id] && msg.getDate().getTime() >= cutoffDate.getTime()) {
           seenIds[id] = true;
+          // Normalize whitespace before truncating so 4000 chars = more signal
+          var rawBody = msg.getPlainBody() || '';
+          var cleanBody = rawBody.replace(/\n{3,}/g, '\n\n').trim().substring(0, 4000);
           emails.push({
             id: id,
             subject: msg.getSubject() || '',
             from: msg.getFrom() || '',
             date: Utilities.formatDate(msg.getDate(), 'America/Los_Angeles', 'yyyy-MM-dd'),
-            body: msg.getPlainBody().substring(0, 2000)
+            body: cleanBody
           });
         }
       }
@@ -135,11 +138,12 @@ function classifyEmail(email) {
   var trackingNumber = extractTrackingNumber(full);
   var carrier        = detectCarrier(from, full);
   var retailer       = detectRetailer(from);
-  var itemDesc       = extractItemDescription(email.subject, full);
+  var itemDesc       = extractItemDescription(email.subject, email.body);
   var estDelivery    = (category === 'delivery') ? extractEstimatedDelivery(full) : null;
-  var deliveryDate   = (status === 'delivered')   ? email.date : null;
-  var refundAmount   = (category === 'return')     ? extractRefundAmount(full)   : null;
-  var refundDate     = (status === 'refund_issued')? email.date : null;
+  var deliveryDate   = (status === 'delivered')    ? email.date : null;
+  var refundAmount   = (category === 'return')      ? extractRefundAmount(full)  : null;
+  var refundDate     = (status === 'refund_issued') ? email.date : null;
+  var trackingUrl    = buildTrackingUrl(carrier, trackingNumber, orderNumber);
 
   return {
     id:                orderNumber || trackingNumber || ('msg_' + email.id),
@@ -155,12 +159,12 @@ function classifyEmail(email) {
     deliveryDate:      deliveryDate,
     proofOfDeliveryUrl:null,
     refundAmount:      refundAmount,
-    refundDate:        refundDate
+    refundDate:        refundDate,
+    trackingUrl:       trackingUrl
   };
 }
 
 function detectDeliveryStatus(text) {
-  // Check subject line first (more authoritative), then full text
   // IMPORTANT: delivered must come before out_for_delivery — Amazon delivery
   // confirmation emails often say "was out for delivery and has been delivered"
   if (/\b(delivered|delivery\s+complete|package\s+delivered|was\s+delivered|has\s+been\s+delivered|left\s+at\s+(your\s+)?(front\s+door|door|mailbox|porch|garage))\b/.test(text)) return 'delivered';
@@ -175,7 +179,6 @@ function detectReturnStatus(text) {
   if (/\b(return\s+(received|accepted|confirmed|completed)|we\s+(received|got)\s+your\s+return)\b/.test(text))                         return 'return_received';
   if (/\b(return\s+(shipped|in\s+transit|on\s+its\s+way|picked\s+up))\b/.test(text))                                                   return 'return_shipped';
   if (/\b(return\s+(initiated|started|requested|label|authorized|approved)|refund\s+request|start\s+(a\s+)?return)\b/.test(text))       return 'return_initiated';
-  // Fallback: any refund/return mention
   if (/\b(refund|return)\b/.test(text)) return 'return_initiated';
   return null;
 }
@@ -203,8 +206,8 @@ function extractTrackingNumber(text) {
   var usps = text.match(/\b(9[24][0-9]{20})\b/);
   if (usps) return usps[1];
 
-  // FedEx: 12 or 15 or 20 digits starting with specific prefixes
-  var fedex = text.match(/\b([0-9]{12,14})\b/);
+  // FedEx: 12-20 digits (avoid matching order numbers)
+  var fedex = text.match(/\btracking\s*(?:#|number|no\.?|id)?[:\s]+([0-9]{12,20})\b/i);
   if (fedex) return fedex[1];
 
   // Amazon TBA
@@ -215,11 +218,12 @@ function extractTrackingNumber(text) {
 }
 
 function detectCarrier(from, text) {
-  if (/amazon/.test(from) || /amazon/.test(text.substring(0, 100))) return 'Amazon';
-  if (/ups\.com/.test(from) || /\bups\b/.test(text.substring(0, 200)))     return 'UPS';
-  if (/fedex/.test(from)    || /fedex/.test(text.substring(0, 200)))       return 'FedEx';
-  if (/usps/.test(from)     || /usps/.test(text.substring(0, 200)))        return 'USPS';
-  if (/dhl/.test(from)      || /\bdhl\b/.test(text.substring(0, 200)))     return 'DHL';
+  if (/amazon/.test(from))              return 'Amazon';
+  if (/ups\.com/.test(from) || /\bups\b/.test(text.substring(0, 300)))   return 'UPS';
+  if (/fedex/.test(from)    || /fedex/.test(text.substring(0, 300)))     return 'FedEx';
+  if (/usps/.test(from)     || /\busps\b/.test(text.substring(0, 300)))  return 'USPS';
+  if (/dhl/.test(from)      || /\bdhl\b/.test(text.substring(0, 300)))   return 'DHL';
+  if (/amazon/.test(text.substring(0, 100)))                             return 'Amazon';
   return 'Carrier';
 }
 
@@ -237,32 +241,90 @@ function detectRetailer(from) {
   if (/ups/.test(d))     return 'UPS';
   if (/fedex/.test(d))   return 'FedEx';
   if (/usps/.test(d))    return 'USPS';
-  // Capitalize first part of domain as retailer name
-  var parts = d.replace(/\.(com|net|org|io)$/, '').split('.');
+  var parts = d.replace(/\.(com|net|org|io|co)$/, '').split('.');
   return parts[parts.length - 1].charAt(0).toUpperCase() + parts[parts.length - 1].slice(1);
 }
 
-function extractItemDescription(subject, fullText) {
-  // Try to strip common prefixes from subject line
+/**
+ * Extract the actual product name from an email.
+ * Priority: quoted text in subject → Amazon body pattern → generic body patterns → cleaned subject
+ */
+function extractItemDescription(subject, body) {
+  // 1. Quoted text in subject: Your order of "Product Name" has shipped
+  var quoted = subject.match(/["""]([^"""]{8,80})["""]/);
+  if (quoted) return quoted[1].trim();
+
+  // Also try straight quotes
+  var straightQuoted = subject.match(/"([^"]{8,80})"/);
+  if (straightQuoted) return straightQuoted[1].trim();
+
+  // 2. Amazon body pattern: "1 of: Product Name"
+  var amazonItem = body.match(/\d+\s+of:\s*([^\n\r]{5,80})/i);
+  if (amazonItem) return amazonItem[1].trim();
+
+  // 3. Generic body item patterns (tried in order)
+  var bodyPatterns = [
+    /^item(?:s)?:\s*([^\n\r]{5,80})/im,
+    /^product(?:s)?:\s*([^\n\r]{5,80})/im,
+    /^description:\s*([^\n\r]{5,80})/im,
+    /you\s+ordered:\s*([^\n\r]{5,80})/i,
+    /(?:ordered|purchased|bought):\s*["']?([^\n\r"']{5,80})/i,
+    /item\s+(?:name|ordered|description):\s*([^\n\r]{5,80})/i
+  ];
+
+  for (var i = 0; i < bodyPatterns.length; i++) {
+    var m = body.match(bodyPatterns[i]);
+    if (m) return m[1].trim();
+  }
+
+  // 4. Cleaned subject fallback — strip status/shipping boilerplate
   var s = subject
     .replace(/^your\s+(amazon\.?com\s+)?order\s+(of\s+)?/i, '')
     .replace(/^(order\s+(confirmed|shipped|delivered|update)|shipment\s+(notification|update|confirmation))\s*[-:]\s*/i, '')
     .replace(/^(your\s+)?(package|shipment)\s+(has\s+)?(shipped|delivered|is\s+on\s+its\s+way|out\s+for\s+delivery)\s*[-:]?\s*/i, '')
     .replace(/^(your\s+)?return\s+(for\s+|of\s+)?/i, '')
     .replace(/\s+has\s+(shipped|been\s+delivered|been\s+received).*$/i, '')
+    .replace(/\s+is\s+(out\s+for\s+delivery|on\s+its\s+way|on\s+the\s+way).*$/i, '')
     .trim();
 
-  // If subject is too generic or empty, fall back to a generic label
-  if (!s || s.length < 3 || /^(re:|fwd:|notification|update|alert|confirmation)$/i.test(s)) {
-    return 'Package';
+  if (s && s.length >= 5 && !/^(re:|fwd:|notification|update|alert|confirmation|shipped|delivered|order)$/i.test(s)) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
 
-  // Capitalize first letter
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  // 5. Last resort
+  return 'Package';
+}
+
+/**
+ * Build a carrier tracking URL from available identifiers.
+ */
+function buildTrackingUrl(carrier, trackingNumber, orderNumber) {
+  if (trackingNumber) {
+    var tn = trackingNumber.toUpperCase();
+    if (/^1Z/.test(tn)) {
+      return 'https://www.ups.com/track?tracknum=' + tn;
+    }
+    if (/^9[24]/.test(tn)) {
+      return 'https://tools.usps.com/go/TrackConfirmAction?tLabels=' + tn;
+    }
+    if (/^TBA/.test(tn) && orderNumber) {
+      return 'https://www.amazon.com/progress-tracker/package?_encoding=UTF8&orderId=' + encodeURIComponent(orderNumber);
+    }
+    if (carrier === 'FedEx') {
+      return 'https://www.fedex.com/fedextrack/?trknbr=' + tn;
+    }
+    if (carrier === 'DHL') {
+      return 'https://www.dhl.com/en/express/tracking.html?AWB=' + tn;
+    }
+  }
+  // Fall back to Amazon order page for Amazon orders
+  if (orderNumber && /^\d{3}-\d{7}-\d{7}$/.test(orderNumber)) {
+    return 'https://www.amazon.com/gp/your-account/order-details?orderID=' + encodeURIComponent(orderNumber);
+  }
+  return null;
 }
 
 function extractEstimatedDelivery(text) {
-  // "arriving Monday, April 5" / "by April 5" / "estimated delivery: April 5"
   var patterns = [
     /arriving\s+(?:by\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)?,?\s*([a-z]+\s+\d{1,2}(?:,?\s+\d{4})?)/i,
     /(?:estimated\s+)?(?:delivery|arrival)\s*(?:date)?[:\s]+(?:by\s+)?([a-z]+\s+\d{1,2}(?:,?\s+\d{4})?)/i,
@@ -273,14 +335,13 @@ function extractEstimatedDelivery(text) {
   for (var i = 0; i < patterns.length; i++) {
     var m = text.match(patterns[i]);
     if (m) {
-      // Try to parse and normalize the date
       try {
         var d = new Date(m[1]);
         if (!isNaN(d.getTime())) {
           return Utilities.formatDate(d, 'America/Los_Angeles', 'yyyy-MM-dd');
         }
       } catch (e) {}
-      return m[1]; // return raw string if parsing fails
+      return m[1];
     }
   }
   return null;
@@ -302,16 +363,18 @@ var STATUS_RANK = {
 function mergePackages(existing, incoming) {
   var rankE = STATUS_RANK[existing.status] || 0;
   var rankI = STATUS_RANK[incoming.status] || 0;
-  // Keep the higher-status entry as the base, fill in missing fields
   var base  = (rankI > rankE) ? incoming : existing;
   var other = (rankI > rankE) ? existing  : incoming;
+
+  // Prefer item descriptions that look like real product names (longer, not generic)
+  var bestDesc = pickBestDescription(base.itemDescription, other.itemDescription);
 
   return {
     id:                base.id,
     category:          base.category,
     status:            base.status,
     completed:         base.completed,
-    itemDescription:   base.itemDescription || other.itemDescription,
+    itemDescription:   bestDesc,
     orderNumber:       base.orderNumber    || other.orderNumber,
     trackingNumber:    base.trackingNumber || other.trackingNumber,
     carrier:           base.carrier        || other.carrier,
@@ -320,6 +383,21 @@ function mergePackages(existing, incoming) {
     deliveryDate:      base.deliveryDate   || other.deliveryDate,
     proofOfDeliveryUrl:base.proofOfDeliveryUrl || other.proofOfDeliveryUrl,
     refundAmount:      base.refundAmount   || other.refundAmount,
-    refundDate:        base.refundDate     || other.refundDate
+    refundDate:        base.refundDate     || other.refundDate,
+    trackingUrl:       base.trackingUrl    || other.trackingUrl
   };
+}
+
+/**
+ * Pick the more descriptive item name between two candidates.
+ * Prefers longer strings that aren't generic fallbacks.
+ */
+function pickBestDescription(a, b) {
+  var generic = /^(package|shipment|item|order|delivery)$/i;
+  var aIsGeneric = !a || generic.test(a.trim());
+  var bIsGeneric = !b || generic.test(b.trim());
+  if (aIsGeneric && !bIsGeneric) return b;
+  if (!aIsGeneric && bIsGeneric) return a;
+  // Both real: pick the longer one (more detail)
+  return (!b || (a && a.length >= b.length)) ? a : b;
 }

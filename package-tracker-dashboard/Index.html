@@ -179,6 +179,9 @@
   .proof-link { color: #1a73e8; text-decoration: none; font-size: 13px; }
   .proof-link:hover { text-decoration: underline; }
 
+  .order-link { color: #1a73e8; text-decoration: none; font-size: 12px; }
+  .order-link:hover { text-decoration: underline; }
+
   .meta-bar {
     text-align: right;
     font-size: 12px;
@@ -317,7 +320,7 @@
     var rows = items.map(function(p) {
       return '<tr>' +
         '<td><div class="item-name">' + esc(p.itemDescription || 'Unknown item') + '</div>' +
-             (p.orderNumber ? '<div class="item-sub">Order #' + esc(p.orderNumber) + '</div>' : '') + '</td>' +
+             (p.orderNumber ? '<div class="item-sub">' + (p.trackingUrl ? '<a class="order-link" href="' + esc(p.trackingUrl) + '" target="_blank">Order #' + esc(p.orderNumber) + ' ↗</a>' : 'Order #' + esc(p.orderNumber)) + '</div>' : '') + '</td>' +
         '<td><span class="badge ' + statusBadge(p.status) + '">' + statusLabel(p.status) + '</span></td>' +
         '<td>' + esc(p.carrier || '—') + (p.trackingNumber ? '<div class="item-sub">' + esc(p.trackingNumber) + '</div>' : '') + '</td>' +
         '<td>' + esc(p.estimatedDelivery || '—') + '</td>' +
@@ -331,7 +334,7 @@
     var rows = items.map(function(p) {
       return '<tr>' +
         '<td><div class="item-name">' + esc(p.itemDescription || 'Unknown item') + '</div>' +
-             (p.orderNumber ? '<div class="item-sub">Order #' + esc(p.orderNumber) + '</div>' : '') + '</td>' +
+             (p.orderNumber ? '<div class="item-sub">' + (p.trackingUrl ? '<a class="order-link" href="' + esc(p.trackingUrl) + '" target="_blank">Order #' + esc(p.orderNumber) + ' ↗</a>' : 'Order #' + esc(p.orderNumber)) + '</div>' : '') + '</td>' +
         '<span class="badge ' + statusBadge(p.status) + '">' + statusLabel(p.status) + '</span></td>' +
         '<td>' + esc(p.carrier || '—') + (p.trackingNumber ? '<div class="item-sub">' + esc(p.trackingNumber) + '</div>' : '') + '</td>' +
         '<td>' + esc(p.refundAmount ? 'Refund: ' + p.refundAmount : '—') + '</td>' +
@@ -348,7 +351,7 @@
         : (p.refundAmount ? '$' + esc(p.refundAmount) + ' refunded' : '—');
       return '<tr>' +
         '<td><div class="item-name">' + esc(p.itemDescription || 'Unknown item') + '</div>' +
-             (p.orderNumber ? '<div class="item-sub">Order #' + esc(p.orderNumber) + '</div>' : '') + '</td>' +
+             (p.orderNumber ? '<div class="item-sub">' + (p.trackingUrl ? '<a class="order-link" href="' + esc(p.trackingUrl) + '" target="_blank">Order #' + esc(p.orderNumber) + ' ↗</a>' : 'Order #' + esc(p.orderNumber)) + '</div>' : '') + '</td>' +
         '<td><span class="badge ' + statusBadge(p.status) + '">' + statusLabel(p.status) + '</span></td>' +
         '<td>' + esc(p.deliveryDate || p.refundDate || '—') + '</td>' +
         '<td>' + detail + '</td>' +
