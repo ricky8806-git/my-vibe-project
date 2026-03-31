@@ -42,6 +42,7 @@ function scanPackages() {
   ];
 
   // Collect unique messages across all queries
+  var userEmail = Session.getActiveUser().getEmail().toLowerCase();
   var seenIds = {};
   var emails = [];
 
@@ -53,7 +54,8 @@ function scanPackages() {
         // Take only the latest message per thread
         var msg = messages[messages.length - 1];
         var id = msg.getId();
-        if (!seenIds[id] && msg.getDate().getTime() >= cutoffDate.getTime()) {
+        var msgFrom = (msg.getFrom() || '').toLowerCase();
+        if (!seenIds[id] && msg.getDate().getTime() >= cutoffDate.getTime() && msgFrom.indexOf(userEmail) === -1) {
           seenIds[id] = true;
           // Normalize whitespace before truncating so 4000 chars = more signal
           var rawBody = msg.getPlainBody() || '';
@@ -109,10 +111,11 @@ function classifyEmail(email) {
   var from    = email.from.toLowerCase();
   var full    = subject + ' ' + body;
 
-  // Determine category (return vs delivery) — check subject first
+  // Determine category (return vs delivery) — check subject first.
+  // Body check requires strong return-action phrases, not just boilerplate mentions of "refund".
   var isReturnEmail = /\b(return|refund|credit|send\s+back|bring\s+back)\b/.test(subject);
   if (!isReturnEmail) {
-    isReturnEmail = /\b(return|refund|credit)\b/.test(body);
+    isReturnEmail = /\b(return\s+(label|request|initiated|started|shipped|received|accepted|confirmed)|refund\s+(request|processed|issued|approved)|your\s+refund|credit\s+applied|send\s+it\s+back|start\s+(a\s+)?return)\b/.test(body);
   }
 
   // Detect status — subject line is authoritative, fall back to full text
@@ -171,7 +174,7 @@ function detectDeliveryStatus(text) {
   if (/\b(delivered|delivery\s+complete|package\s+delivered|was\s+delivered|has\s+been\s+delivered|left\s+at\s+(your\s+)?(front\s+door|door|mailbox|porch|garage))\b/.test(text)) return 'delivered';
   if (/out\s+for\s+delivery/.test(text))                                    return 'out_for_delivery';
   if (/\b(shipped|on\s+its\s+way|on\s+the\s+way|in\s+transit|picked\s+up|dispatched|order\s+shipped|has\s+shipped)\b/.test(text)) return 'shipped';
-  if (/\b(order\s+(confirmed|placed|received)|thank\s+you\s+for\s+(your\s+)?order|we('ve| have)\s+received\s+your\s+order)\b/.test(text)) return 'ordered';
+  if (/\b(order\s+(confirmed|placed|received|status)|thank\s+you\s+for\s+(your\s+)?order|we('ve| have)\s+received\s+your\s+order|in\s+process|order\s+is\s+(being\s+)?processed|processing\s+your\s+order|items?\s+(are\s+)?ready\s+to\s+ship)\b/.test(text)) return 'ordered';
   return null;
 }
 
